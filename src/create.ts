@@ -9,6 +9,7 @@ import { isExcluded } from "./exclude";
 import { getExtensionOverrideSetting } from "./model/extensionOverride";
 import { md5sum, isImage, isPastedImage } from "./utils";
 import { saveOriginalName } from "./lib/originalStorage";
+import { convert_file } from "./model/convertImage"
 
 export class CreateHandler {
   readonly plugin: Plugin;
@@ -50,8 +51,15 @@ export class CreateHandler {
     const attachPath = metadata.getAttachmentPath(setting, this.settings.dateFormat);
     metadata
       .getAttachFileName(setting, this.settings.dateFormat, attach.basename, this.app.vault.adapter)
-      .then((attachName) => {
-        attachName = attachName + "." + attach.extension;
+      .then(async (attachName) => {
+        if (this.settings.enableConvertImage && (attach.extension == 'jpg' || attach.extension == 'webp' || attach.extension == 'png' || attach.extension == 'jpeg')
+          && await convert_file(this.app, attach, this.settings.convertType, this.settings.convertQuality)) {
+          attachName = attachName + "." + this.settings.convertType;
+          new Notice(`Image converted ✅`);
+        }
+        else {
+          attachName = attachName + "." + attach.extension;          
+        }
         // make sure the attachment path was created
         this.app.vault.adapter
           .exists(attachPath, true)

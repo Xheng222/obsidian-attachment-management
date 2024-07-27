@@ -63,11 +63,14 @@ export default class AttachmentManagementPlugin extends Plugin {
           const curentTime = new Date().getTime();
           const timeGapMs = curentTime - file.stat.mtime;
           const timeGapCs = curentTime - file.stat.ctime;
+          const activeFile = this.app.workspace.getActiveFile();
+
           // ignore markdown and canvas file.
-          if (timeGapMs > 1000 || timeGapCs > 1000 || isMarkdownFile(file.extension) || isCanvasFile(file.extension)) {
-            return;
+          if (isMarkdownFile(file.extension) || isCanvasFile(file.extension)) {
+           return;
           }
 
+          
           if (matchExtension(file.extension, this.settings.excludeExtensionPattern)) {
             debugLog("create - excluded file by extension", file);
             return;
@@ -85,6 +88,9 @@ export default class AttachmentManagementPlugin extends Plugin {
           }
 
           debugLog("on modify event - file:", file.path);
+          if (!isMarkdownFile(file.extension) && !isCanvasFile(file.extension)) {
+           return;
+          }
           this.app.vault.adapter.process(file.path, (pdata) => {
             // processing one file at one event loop, other files will be processed in the next event loop
             const f = this.createdQueue.first();
@@ -99,6 +105,8 @@ export default class AttachmentManagementPlugin extends Plugin {
                   ) {
                     this.createdQueue.remove(f);
                     processor.processAttach(f, file);
+                  } else {
+                    this.createdQueue.remove(f);
                   }
                 } else {
                   // remove not exists file

@@ -77,6 +77,12 @@ export interface AttachmentManagementPluginSettings {
   originalNameStorage: OriginalNameStorage[];
   // Path of notes that override global configuration
   overridePath: Record<string, AttachmentPathSettings>;
+
+  enableConvertImage: boolean;
+
+	convertType: string;
+
+	convertQuality: Number;
 }
 
 export const DEFAULT_SETTINGS: AttachmentManagementPluginSettings = {
@@ -96,6 +102,9 @@ export const DEFAULT_SETTINGS: AttachmentManagementPluginSettings = {
   originalNameStorage: [],
   overridePath: {},
   disableNotification: false,
+  enableConvertImage: false,
+	convertType: 'jpg',
+	convertQuality: 0.95,
 };
 
 export class SettingTab extends PluginSettingTab {
@@ -352,6 +361,44 @@ export class SettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
+    new Setting(containerEl)
+    .setName("Enable Convert Image")
+    .addToggle((toggle) =>
+      toggle
+        .setValue(this.plugin.settings.enableConvertImage)	
+        .onChange(async (value) => {
+          this.plugin.settings.enableConvertImage = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+		new Setting(containerEl)
+			.setName('Convert Target Type')
+			.addDropdown((dropDown) =>
+				dropDown
+					.addOption("webp", "webp")
+					.addOption("jpg", "jpg")
+					.setValue(this.plugin.settings.convertType)
+					.onChange(async (value) => {
+						this.plugin.settings.convertType = value;
+						await this.plugin.saveSettings();
+					})
+			  );
+
+		new Setting(containerEl)
+			.setName('Convert Quality')
+			.setDesc('a num between 0-1')
+			.addText(text => text
+				.setPlaceholder('Enter your secret')
+				.setValue(this.plugin.settings.convertQuality.toString())
+				.onChange(async (value) => {
+					const quality = Number(value);
+					if (0 < quality && quality <= 1) {
+							this.plugin.settings.convertQuality = quality;				
+							await this.plugin.saveSettings();				
+						}
+				}));
 
     this.displaySw(containerEl);
   }
