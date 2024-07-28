@@ -55,7 +55,7 @@ export class CreateHandler {
         if (this.settings.enableConvertImage && (attach.extension == 'jpg' || attach.extension == 'webp' || attach.extension == 'png' || attach.extension == 'jpeg')
           && await convert_file(this.app, attach, this.settings.convertType, this.settings.convertQuality)) {
           attachName = attachName + "." + this.settings.convertType;
-          new Notice(`Image converted ✅`);
+          new Notice(`Image converted`);
         }
         else {
           attachName = attachName + "." + attach.extension;          

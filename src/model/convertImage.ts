@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
+import { App, TFile} from "obsidian";
 
 async function convert_image_to_blob(img_blob: Blob, convertType: string, convertQuality: Number): Promise<any> {
     return new Promise(async (resolve, reject) => {
@@ -16,9 +16,11 @@ async function convert_image_to_blob(img_blob: Blob, convertType: string, conver
                 if (convertType == "jpg")
                     type += "jpeg";
                 else
-                    type += this.convertType;
+                    type += convertType;
 
+                context.save();
                 context.drawImage(image, 0, 0);
+                context.restore();
                 canvas.toBlob((e) => { 
                     if (e) resolve(e);
                     else resolve(null);	

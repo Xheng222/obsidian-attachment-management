@@ -63,11 +63,11 @@ export default class AttachmentManagementPlugin extends Plugin {
           const curentTime = new Date().getTime();
           const timeGapMs = curentTime - file.stat.mtime;
           const timeGapCs = curentTime - file.stat.ctime;
-          const activeFile = this.app.workspace.getActiveFile();
 
           // ignore markdown and canvas file.
           if (isMarkdownFile(file.extension) || isCanvasFile(file.extension)) {
-           return;
+          // if (timeGapMs > 1000 || timeGapCs > 1000 || isMarkdownFile(file.extension) || isCanvasFile(file.extension)) {
+            return;
           }
 
           

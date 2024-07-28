@@ -390,7 +390,6 @@ export class SettingTab extends PluginSettingTab {
 			.setName('Convert Quality')
 			.setDesc('a num between 0-1')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
 				.setValue(this.plugin.settings.convertQuality.toString())
 				.onChange(async (value) => {
 					const quality = Number(value);
