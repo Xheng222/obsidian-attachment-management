@@ -1,8 +1,9 @@
 import { App, TFile} from "obsidian";
+import { debugLog } from "src/lib/log";
 
 async function convert_image_to_blob(img_blob: Blob, convertType: string, convertQuality: Number): Promise<any> {
     return new Promise(async (resolve, reject) => {
-        console.log("run")
+        debugLog("run convert");
         const imgURL = URL.createObjectURL(img_blob);
         const image = new Image();
         image.onload = () =>  {
@@ -46,9 +47,3 @@ export async function convert_file(app: App, file: TFile, convertType: string, c
 
     return false;
 }
-
-
-
-
-
-

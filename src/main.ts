@@ -1,4 +1,4 @@
-import { Notice, Plugin, TAbstractFile, TFile, TFolder } from "obsidian";
+import { MarkdownEditView, MarkdownView, Notice, Plugin, TAbstractFile, TFile, TFolder, View } from "obsidian";
 import {
   AttachmentManagementPluginSettings,
   AttachmentPathSettings,
@@ -17,11 +17,59 @@ import { ArrangeHandler, RearrangeType } from "./arrange";
 import { CreateHandler } from "./create";
 import { isExcluded } from "./exclude";
 import { getMetadata } from "./settings/metadata";
+import { AttachmentItem, BlockingQueue } from "./model/blockingQueue";
 
 export default class AttachmentManagementPlugin extends Plugin {
   settings: AttachmentManagementPluginSettings;
-  createdQueue: TFile[] = [];
+  // createdQueue: TFile[] = [];
+  createdQueue: BlockingQueue<AttachmentItem> = new BlockingQueue<AttachmentItem>(5);
+  stop: boolean = false;
   originalObsAttachPath: string;
+
+  async delay(milliseconds : number) {
+    return new Promise(resolve => setTimeout( resolve, milliseconds));
+  }
+
+  async processQueue() {
+    debugLog("run process");
+    let activeFile: TFile | null;
+    while (!this.stop) {
+      const attachItem = await this.createdQueue.take();
+      if (attachItem !== undefined) {
+        const endTime = +new Date(); 
+        const waitTime = 2500 + attachItem.time - endTime;
+        if (waitTime > 0) 
+          await this.delay(waitTime);
+
+        let retry = 0;
+        while (retry < 5) {
+          activeFile = this.app.vault.getFileByPath(attachItem.activeFile); 
+          if (activeFile !== null) {
+            const link = this.app.fileManager.generateMarkdownLink(attachItem.attachFile, activeFile.path);
+            const fileContent = await this.app.vault.adapter.process(attachItem.activeFile, (pdata) => pdata);
+            if (
+              (activeFile.extension == "md" && fileContent.indexOf(link) != -1) ||
+              (activeFile.extension == "canvas" && fileContent.indexOf(attachItem.attachFile.path) != -1)
+            ) {
+              const processor = new CreateHandler(this, this.settings);                      
+              processor.processAttach(attachItem.attachFile, activeFile);
+              break;
+            } 
+            else {
+              debugLog("file link does not exist:", activeFile.path);
+              await this.delay(500)
+              retry++;
+            }
+          }
+          else {
+            break;
+          }     
+        }
+        await this.delay(300)        
+      }
+    }
+    debugLog("finish process");
+  }
 
   async onload() {
     await this.loadSettings();
@@ -60,9 +108,9 @@ export default class AttachmentManagementPlugin extends Plugin {
 
           // if the file is modified/create more than 1 second ago, the event is most likely be fired by copy file to
           // vault folder without using obsidian or sync file from remote (e.g. file manager of op system), we should ignore it.
-          const curentTime = new Date().getTime();
-          const timeGapMs = curentTime - file.stat.mtime;
-          const timeGapCs = curentTime - file.stat.ctime;
+          // const curentTime = new Date().getTime();
+          // const timeGapMs = curentTime - file.stat.mtime;
+          // const timeGapCs = curentTime - file.stat.ctime;
 
           // ignore markdown and canvas file.
           if (isMarkdownFile(file.extension) || isCanvasFile(file.extension)) {
@@ -76,49 +124,55 @@ export default class AttachmentManagementPlugin extends Plugin {
             return;
           }
 
-          this.createdQueue.push(file);
+          let activeFile = this.app.workspace.getActiveFile();
+          if (activeFile !== null) {
+            const beginTime = +new Date(); 
+            this.createdQueue.put(new AttachmentItem(file, beginTime, activeFile.path)).then(() => { debugLog("put") });
+          }          
         })
       );
 
-      this.registerEvent(
-        this.app.vault.on("modify", (file: TAbstractFile) => {
-          debugLog("on modify event - create queue:", this.createdQueue);
-          if (this.createdQueue.length < 1 || !(file instanceof TFile)) {
-            return;
-          }
+      this.processQueue()
 
-          debugLog("on modify event - file:", file.path);
-          if (!isMarkdownFile(file.extension) && !isCanvasFile(file.extension)) {
-           return;
-          }
-          this.app.vault.adapter.process(file.path, (pdata) => {
-            // processing one file at one event loop, other files will be processed in the next event loop
-            const f = this.createdQueue.first();
-            if (f != undefined) {
-              this.app.vault.adapter.exists(f.path, true).then((exist) => {
-                if (exist) {
-                  const processor = new CreateHandler(this, this.settings);
-                  const link = this.app.fileManager.generateMarkdownLink(f, file.path);
-                  if (
-                    (file.extension == "md" && pdata.indexOf(link) != -1) ||
-                    (file.extension == "canvas" && pdata.indexOf(f.path) != -1)
-                  ) {
-                    this.createdQueue.remove(f);
-                    processor.processAttach(f, file);
-                  } else {
-                    this.createdQueue.remove(f);
-                  }
-                } else {
-                  // remove not exists file
-                  debugLog("on modify event - file does not exist:", f.path);
-                  this.createdQueue.remove(f);
-                }
-              });
-            }
-            return pdata;
-          });
-        })
-      );
+      // this.registerEvent(
+      //   this.app.vault.on("modify", (file: TAbstractFile) => {
+      //     debugLog("on modify event - create queue:", this.createdQueue);
+      //     if (this.createdQueue.length < 1 || !(file instanceof TFile)) {
+      //       return;
+      //     }
+
+      //     debugLog("on modify event - file:", file.path);
+      //     if (!isMarkdownFile(file.extension) && !isCanvasFile(file.extension)) {
+      //      return;
+      //     }
+      //     this.app.vault.adapter.process(file.path, (pdata) => {
+      //       // processing one file at one event loop, other files will be processed in the next event loop
+      //       const f = this.createdQueue.first();
+      //       if (f != undefined) {
+      //         this.app.vault.adapter.exists(f.path, true).then((exist) => {
+      //           if (exist) {
+      //             const processor = new CreateHandler(this, this.settings);
+      //             const link = this.app.fileManager.generateMarkdownLink(f, file.path);
+      //             if (
+      //               (file.extension == "md" && pdata.indexOf(link) != -1) ||
+      //               (file.extension == "canvas" && pdata.indexOf(f.path) != -1)
+      //             ) {
+      //               this.createdQueue.remove(f);
+      //               processor.processAttach(f, file);
+      //             } else {
+      //               this.createdQueue.remove(f);
+      //             }
+      //           } else {
+      //             // remove not exists file
+      //             debugLog("on modify event - file does not exist:", f.path);
+      //             this.createdQueue.remove(f);
+      //           }
+      //         });
+      //       }
+      //       return pdata;
+      //     });
+      //   })
+      // );
 
       this.registerEvent(
         // when trigger a rename event on folder, for each file/folder in this renamed folder (include itself) will trigger this event
@@ -341,6 +395,8 @@ export default class AttachmentManagementPlugin extends Plugin {
   async onunload() {
     console.log("unloading attachment management.");
     // Clear the queue of created file.
-    this.createdQueue = [];
+    this.stop = true;
+    this.createdQueue.clear();
+    
   }
 }
